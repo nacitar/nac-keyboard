@@ -72,6 +72,9 @@ function(AddCleanFiles)
         "${value}")
   endforeach()
 endfunction()
+# Use ${ECHO} for easier echo command invocation in custom commands
+set(ECHO "COMMAND ${CMAKE_COMMAND} -E echo")
+separate_arguments(ECHO)
 
 # Clear it one time
 ClearBuildValues()

@@ -123,21 +123,17 @@ add_custom_target(run ALL
     --no-change-warnings
     "${TARGET}.elf" "${TARGET}.eep"
     # summary output
-    COMMAND ${CMAKE_COMMAND} -E echo
-    COMMAND ${CMAKE_COMMAND} -E echo
-        "---------------------------------------------------------------"
-    COMMAND ${CMAKE_COMMAND} -E echo
+    ${ECHO}
+    ${ECHO} "---------------------------------------------------------------"
+    ${ECHO}
     COMMAND  # sizes
     "${AVR_SIZE_TOOL}" --target="${FORMAT}" "${TARGET}.hex" "${TARGET}.eep"
-    COMMAND ${CMAKE_COMMAND} -E echo
-    COMMAND ${CMAKE_COMMAND} -E echo
-        "you can load \"firmware.hex\" and \"firmware.eep\" onto the"
-    COMMAND ${CMAKE_COMMAND} -E echo
-        "Teensy using the Teensy loader"
-    COMMAND ${CMAKE_COMMAND} -E echo
-    COMMAND ${CMAKE_COMMAND} -E echo
-        "---------------------------------------------------------------"
-    COMMAND ${CMAKE_COMMAND} -E echo
+    ${ECHO}
+    ${ECHO} "you can load \"firmware.hex\" and \"firmware.eep\" onto the"
+    ${ECHO} "Teensy using the Teensy loader"
+    ${ECHO}
+    ${ECHO} "---------------------------------------------------------------"
+    ${ECHO}
     DEPENDS "${TARGET}.elf")
 # make sure the hex and eep are cleaned
 AddCleanFiles("${TARGET}.hex" "${TARGET}.eep")
