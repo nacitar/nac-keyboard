@@ -103,28 +103,41 @@ if(GCC_COMPAT)
   AddCleanFiles("${TARGET}.dep")
 endif()
 
-
+# sources
 list(APPEND CXX_SOURCES "src/main.cc")
 
 # build the elf
 AddProgram("${TARGET}.elf")
-# run extra post-build commands
-add_custom_command(TARGET "${TARGET}.elf" POST_BUILD
-    # create the hex
-    COMMAND
+
+# create the hex, eep, and print the summary output (including .hex/.eep sizes)
+add_custom_target(run ALL
+    COMMAND  # .hex
     "${CMAKE_OBJCOPY}" -O "${FORMAT}"
     -R .eeprom -R .fuse -R .lock -R .signature
     "${TARGET}.elf" "${TARGET}.hex"
-    # create the eep
-    COMMAND
+    COMMAND  # .eep
     "${CMAKE_OBJCOPY}" -O "${FORMAT}"
     -j .eeprom
     --set-section-flags=.eeprom="alloc,load"
     --change-section-lma .eeprom=0
     --no-change-warnings
     "${TARGET}.elf" "${TARGET}.eep"
-    # show the sizes
-    COMMAND
-    "${AVR_SIZE_TOOL}" --target="${FORMAT}" "${TARGET}.hex" "${TARGET}.eep")
+    # summary output
+    COMMAND ${CMAKE_COMMAND} -E echo
+    COMMAND ${CMAKE_COMMAND} -E echo
+        "---------------------------------------------------------------"
+    COMMAND ${CMAKE_COMMAND} -E echo
+    COMMAND  # sizes
+    "${AVR_SIZE_TOOL}" --target="${FORMAT}" "${TARGET}.hex" "${TARGET}.eep"
+    COMMAND ${CMAKE_COMMAND} -E echo
+    COMMAND ${CMAKE_COMMAND} -E echo
+        "you can load \"firmware.hex\" and \"firmware.eep\" onto the"
+    COMMAND ${CMAKE_COMMAND} -E echo
+        "Teensy using the Teensy loader"
+    COMMAND ${CMAKE_COMMAND} -E echo
+    COMMAND ${CMAKE_COMMAND} -E echo
+        "---------------------------------------------------------------"
+    COMMAND ${CMAKE_COMMAND} -E echo
+    DEPENDS "${TARGET}.elf")
 # make sure the hex and eep are cleaned
 AddCleanFiles("${TARGET}.hex" "${TARGET}.eep")
