@@ -71,6 +71,8 @@ if(GCC_COMPAT)
   Append(CC_FLAGS "-DMAKEFILE_LED_BRIGHTNESS='${LED_BRIGHTNESS}'")
   # optimize for size
   Append(CC_FLAGS "-Os")
+  # enable link-time optimization
+  Append(CC_FLAGS "-flto")
   # enable common warnings
   Append(CC_FLAGS "-Wall")
   # pack all structure members together without holes
