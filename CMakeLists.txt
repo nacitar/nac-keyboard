@@ -63,6 +63,14 @@ endif()
 if(GCC_COMPAT)
   # pass in hardware settings
   Append(CC_FLAGS "-mmcu=${MCU} -DF_CPU=${F_CPU}")
+  # set options
+  Append(CC_FLAGS "-DMAKEFILE_BOARD='${BOARD}'")
+  Append(CC_FLAGS "-DMAKEFILE_KEYBOARD='${KEYBOARD}'")
+  Append(CC_FLAGS "-DMAKEFILE_KEYBOARD_LAYOUT='${LAYOUT}'")
+  Append(CC_FLAGS "-DMAKEFILE_DEBOUNCE_TIME='${DEBOUNCE_TIME}'")
+  Append(CC_FLAGS "-DMAKEFILE_LED_BRIGHTNESS='${LED_BRIGHTNESS}'")
+  # optimize for size
+  Append(CC_FLAGS "-Os")
   # enable common warnings
   Append(CC_FLAGS "-Wall")
   # pack all structure members together without holes
@@ -74,12 +82,6 @@ if(GCC_COMPAT)
   # target supports arbitrary sections.  for linker optimizations, and
   # discarding unused code.
   Append(CC_FLAGS "-ffunction-sections -fdata-sections")
-  # set options
-  Append(CC_FLAGS "-DMAKEFILE_BOARD='${BOARD}'")
-  Append(CC_FLAGS "-DMAKEFILE_KEYBOARD='${KEYBOARD}'")
-  Append(CC_FLAGS "-DMAKEFILE_KEYBOARD_LAYOUT='${LAYOUT}'")
-  Append(CC_FLAGS "-DMAKEFILE_DEBOUNCE_TIME='${DEBOUNCE_TIME}'")
-  Append(CC_FLAGS "-DMAKEFILE_LED_BRIGHTNESS='${LED_BRIGHTNESS}'")
 
   # Set language specific flags for cmake
   Append(C_FLAGS "-std=gnu99 -Wstrict-prototypes")
