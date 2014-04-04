@@ -1,6 +1,7 @@
 
 #include <stdint.h>
 #include <avr/io.h>
+#include <util/delay.h>
 
 #if defined(__GNUC__)
 #define FORCE_INLINE inline __attribute__((always_inline))
@@ -46,6 +47,17 @@ class BitFlag {
 
 /// @brief teensy namespace
 namespace teensy {
+
+/// @brief Delay function ensuring an integral value known at compile time.
+/// @details If you pass the function a variable instead of a number, then
+/// the floating point math routines are going to get linked in to your program
+/// making it over 2,000 bytes bigger. For some chips, that's more than how
+/// much flash memory you have.
+/// See: http://efundies.com/avr/avr_delay_using_c.htm
+template <unsigned long milliseconds>
+FORCE_INLINE void SleepMs() {
+  _delay_ms(milliseconds);
+}
 
 /// @brief The type used by the AVR registers.
 /// @details Using the type of an arbitrary register for this.
@@ -178,9 +190,10 @@ class Pin {
 class InputPin : public Pin {
  public:
   // using 'D' pins for type deduction
-  FORCE_INLINE InputPin(Port* port,uint8_t index)
+  FORCE_INLINE InputPin(Port* port, uint8_t index, bool pullup)
       : Pin(port,index) {
     directionBit_.set(static_cast<bool>(PinDirection::INPUT));
+    setPullup(pullup);
   }
   FORCE_INLINE bool pullup() const { // TODO: does this work?
     return writeBit_.get();
@@ -192,9 +205,10 @@ class InputPin : public Pin {
 class OutputPin : public Pin {
  public:
   // using 'D' pins for type deduction
-  FORCE_INLINE OutputPin(Port* port,uint8_t index)
+  FORCE_INLINE OutputPin(Port* port, uint8_t index, bool high)
       : Pin(port,index) {
     directionBit_.set(static_cast<bool>(PinDirection::OUTPUT));
+    setValue(high);
   }
   FORCE_INLINE void setValue(bool high) {
     return writeBit_.set(high);
@@ -210,17 +224,22 @@ teensy::Port PortF(&DDRF,&PORTF,&PINF);
 
 int main() {
   teensy::SetProcessorFrequency();
-  //teensy::Pin pin(&teensy::PortD,0);
-  teensy::InputPin x(&teensy::PortD,0);
-  teensy::InputPin z(&teensy::PortD,1);
-  teensy::InputPin a(&teensy::PortD,2);
-  x.setPullup(true);
-  z.setPullup(true);
-  a.setPullup(true);
-  teensy::OutputPin y(&teensy::PortF,0);
-  y.setValue(true);
-  //*x.pullupRegister() = 1;
-  //x.setPullup();
+
+  teensy::OutputPin teensyLED(&teensy::PortD, 6, false);
+
+  // PB4 is tied to VCC in the ergodox pcb, supposedly for "hardware
+  // convenience".
+  // Supposedly, you can cut the track if you want to use PB4 for something,
+  // but unless you do that, we should make this an input without pullup.
+  // See: http://geekhack.org/index.php?topic=22780.2850
+  teensy::InputPin pb4Vcc(&teensy::PortB, 4, false);
+
+  while (1) {
+    teensyLED.setValue(true);
+    teensy::SleepMs<1000>();
+    teensyLED.setValue(false);
+    teensy::SleepMs<1000>();
+  }
 
   return 0;
 }
