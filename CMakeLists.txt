@@ -75,6 +75,12 @@ if(GCC_COMPAT)
   Append(CC_FLAGS "-flto")
   # enable common warnings
   Append(CC_FLAGS "-Wall")
+  # as we're heavily relying upon inlining, we want errors if inlining is not
+  # obeyed.
+  Append(CC_FLAGS "-Winline")# -Werror")
+  # consider all functions for inlining
+  Append(CC_FLAGS "-finline-functions -fpartial-inlining")
+  Append(CC_FLAGS "-finline-small-functions -fearly-inlining")
   # pack all structure members together without holes
   Append(CC_FLAGS "-fpack-struct")
   # allocate to an 'enum' type only as many bytes as it needs for the declared
@@ -89,7 +95,7 @@ if(GCC_COMPAT)
   Append(C_FLAGS "-std=gnu99 -Wstrict-prototypes")
   Append(CXX_FLAGS "-std=gnu++11")
 
-  # Create LINK_FLAGS from our CC_FLAGS (needed for gcc's -flto if we use it) 
+  # Create LINK_FLAGS from our CC_FLAGS (needed for gcc's -flto if we use it)
   set(LINK_FLAGS "${CC_FLAGS}")
   # generate a link map, with a cross reference table
   Append(LINK_FLAGS "-Wl,-Map=${TARGET}.map,--cref")
