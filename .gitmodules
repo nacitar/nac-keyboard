@@ -1,3 +1,6 @@
 [submodule "cmake"]
-	path = cmake
+	path = external/cmake
 	url = git@github.com:nacitar/cmake.git
+[submodule "external/nx-core"]
+	path = external/nx-core
+	url = git@github.com:nacitar/nx-core.git

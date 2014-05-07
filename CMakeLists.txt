@@ -14,7 +14,6 @@
 # limitations under the License.
 #
 
-include(cmake/build_utils.cmake)
 ###
 # Build Values
 ###
@@ -30,8 +29,10 @@ include(cmake/build_utils.cmake)
 #
 ###
 
-project (nac-firmware CXX C)
+project (nac-keyboard CXX C)
 cmake_minimum_required(VERSION 2.6.2)
+
+include(external/cmake/build_utils.cmake)
 
 # target name
 set(TARGET "${CMAKE_PROJECT_NAME}")
@@ -49,18 +50,8 @@ set(LAYOUT "workman-p-kinesis-mod")
 # processor Hz, must match initialization in source
 set(F_CPU "16000000")
 
-# Clang support
-if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-  set(CMAKE_COMPILER_IS_CLANG "1")
-endif()
-
-# GCC support
-if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_COMPILER_IS_CLANG)
-  set(GCC_COMPAT "1")
-endif()
-
 # Compilation settings
-if(GCC_COMPAT)
+if(TOOLCHAIN_CXX_GNU_COMPATIBLE)
   # pass in hardware settings
   Append(CC_FLAGS "-mmcu=${MCU} -DF_CPU=${F_CPU}")
   # set options
@@ -113,11 +104,14 @@ if(GCC_COMPAT)
   AddCleanFiles("${TARGET}.dep")
 endif()
 
+
+include_directories("${nac-keyboard_SOURCE_DIR}/external/nx-core/include")
+
 # sources
-list(APPEND CXX_SOURCES "src/main.cc")
+ListSet(CXX_SOURCES "src/main.cc")
 
 # build the elf
-AddProgram("${TARGET}.elf")
+AddExecutable("${TARGET}.elf")
 
 # create the hex, eep, and print the summary output (including .hex/.eep sizes)
 add_custom_target(run ALL
