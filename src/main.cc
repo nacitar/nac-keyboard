@@ -3,47 +3,7 @@
 #include <avr/io.h>
 #include <util/delay.h>
 
-#if defined(__GNUC__)
-#define FORCE_INLINE inline __attribute__((always_inline))
-#else
-#define FORCE_INLINE inline
-#warning "This platform doesn't have a proper FORCE_INLINE value defined."
-#endif
-
-template<class T> struct remove_pointer      {typedef T type;};
-template<class T> struct remove_pointer<T*>  {typedef T type;};
-template<class T> struct remove_reference      {typedef T type;};
-template<class T> struct remove_reference<T&>  {typedef T type;};
-template<class T> struct remove_reference<T&&> {typedef T type;};
-template<class T> struct remove_volatile              {typedef T type;};
-template<class T> struct remove_volatile<volatile T>  {typedef T type;};
-
-/// @brief Accepts a pointer to data and a bit index, providing an interface to
-/// set/get the value of the data bit in that position.
-/// @todo Ensure only pointers are passed.
-template <class PointerType>
-class BitFlag {
-  typedef typename remove_volatile<
-      typename remove_pointer<PointerType>::type>::type FieldType;
-  PointerType const data_;
-  const FieldType mask_;
- public:
-  FORCE_INLINE constexpr BitFlag(PointerType data,uint8_t index)
-      : data_(data)
-      , mask_(static_cast<FieldType>(static_cast<FieldType>(1) << index)) {
-  }
-  FORCE_INLINE void set(bool high) {
-    if (high) {
-      *data_ |= mask_;
-    } else {
-      *data_ &= ~mask_;
-    }
-  }
-  FORCE_INLINE bool get() const {
-    return static_cast<bool>(*data_ & mask_);
-  }
-};
-
+#include <nx/core.h> // includes barebones type_traits impl for AVR
 
 /// @brief teensy namespace
 namespace teensy {
@@ -55,13 +15,9 @@ namespace teensy {
 /// much flash memory you have.
 /// See: http://efundies.com/avr/avr_delay_using_c.htm
 template <unsigned long milliseconds>
-FORCE_INLINE void SleepMs() {
+NX_FORCEINLINE void SleepMs() {
   _delay_ms(milliseconds);
 }
-
-/// @brief The type used by the AVR registers.
-/// @details Using the type of an arbitrary register for this.
-typedef remove_reference<decltype(DDRD)>::type*  RegisterPointer;
 
 /// @brief Processor frequencies supported by the Teensy.
 /// @details See: https://www.pjrc.com/teensy/prescaler.html
@@ -78,7 +34,7 @@ enum class ProcessorFrequency {
 };
 
 /// @brief Gets the processor frequency as specified by F_CPU.
-FORCE_INLINE ProcessorFrequency GetProcessorFrequency() {
+NX_FORCEINLINE ProcessorFrequency GetProcessorFrequency() {
   constexpr ProcessorFrequency processorFrequency =
       ProcessorFrequency::
       #if   F_CPU == 16000000
@@ -114,11 +70,12 @@ FORCE_INLINE ProcessorFrequency GetProcessorFrequency() {
 /// frequency other than that of F_CPU.
 /// See "Reduce Clock Speed" here: https://www.pjrc.com/teensy/low_power.html
 /// See: https://www.pjrc.com/teensy/prescaler.html
-FORCE_INLINE void SetProcessorFrequency() {
+NX_FORCEINLINE void SetProcessorFrequency() {
   CLKPR = 0x80;
   CLKPR = static_cast<uint8_t>(GetProcessorFrequency());
 }
 
+// TODO: remove
 /// https://www.pjrc.com/teensy/pins.html
 enum class PinDirection : bool {
   INPUT  = false,
@@ -126,12 +83,37 @@ enum class PinDirection : bool {
 };
 
 
-/// @brief A type to represent a single bit in an AVR register
-typedef BitFlag<RegisterPointer> RegisterBit;
+//teensy::Port PortB(&DDRB,&PORTB,&PINB);
+//teensy::Port PortC(&DDRC,&PORTC,&PINC);
+//teensy::Port PortD(&DDRD,&PORTD,&PIND);
+//teensy::Port PortE(&DDRE,&PORTE,&PINE);
+//teensy::Port PortF(&DDRF,&PORTF,&PINF);
 
-class Port {
+}  // namespace teensy
+
+/// @brief The type used by the AVR registers.
+/// @details Using the type of an arbitrary register for this.
+typedef std::remove_reference<decltype(DDRD)>::type*  RegisterPointer;
+
+/// @brief Raw integral type of the AVR registers
+/// @details Using the type of an arbitrary register for this.
+typedef typename std::remove_volatile<
+    typename std::remove_reference<decltype(DDRD)>::type>::type register_type;
+
+template <register_type mask_, register_type value_>
+using Value = nx::BitValue<register_type, mask_, value_>;
+template <register_type mask_, register_type value_>
+using Field = nx::BitField<register_type, mask_, value_>;
+template <unsigned int... position_>
+using Mask = nx::BitMask<register_type, position_...>;
+
+class TeensyPort {
+  RegisterPointer const directionRegister_;
+  RegisterPointer const writeRegister_;
+  RegisterPointer const readRegister_;
  public:
-  FORCE_INLINE constexpr Port(
+
+  NX_FORCEINLINE constexpr TeensyPort(
       RegisterPointer directionRegister,
       RegisterPointer writeRegister,
       RegisterPointer readRegister)
@@ -139,105 +121,69 @@ class Port {
       , writeRegister_(writeRegister)
       , readRegister_(readRegister) {
   }
-  FORCE_INLINE constexpr RegisterPointer directionRegister() const {
-    return directionRegister_;
+
+  // TODO: rework how we pass these in, perhaps more like set()
+  template<class InputPins, class OutputPins>
+  NX_FORCEINLINE void setDirection() {
+    typedef nx::BitTransaction<
+        Value<OutputPins::value, OutputPins::value>, // output
+        Value<InputPins::value, 0u> // input
+        > DirectionField;
+    DirectionField::set(directionRegister_);
   }
-  FORCE_INLINE constexpr RegisterPointer writeRegister() const {
-    return writeRegister_;
+
+  /// @brief Gets the value of an input pin (TODO: does this work for output?)
+  template <class Mask>
+  NX_FORCEINLINE register_type get() {
+    return (*readRegister_) & Mask::value;
   }
-  FORCE_INLINE constexpr RegisterPointer readRegister() const {
-    return readRegister_;
+
+  /// @brief Sets the bits specified.  For input pins, set bits mean to enable
+  /// the internal pullup.
+  template <class Value>
+  NX_FORCEINLINE void set() {
+    Value::set(writeRegister_);
   }
- private:
-  RegisterPointer const directionRegister_;
-  RegisterPointer const writeRegister_;
-  RegisterPointer const readRegister_;
+
 };
 
-
-
-class Pin {
-  Port* const port_;
-  const uint8_t index_;
- protected:
-  RegisterBit directionBit_;
-  RegisterBit writeBit_;
-  RegisterBit readBit_;
+template <unsigned int index_>
+class TeensyPin {
+  TeensyPort* const port_;
  public:
-  FORCE_INLINE constexpr Pin(Port* port,uint8_t index)
-      : port_(port)
-      , index_(index)
-      , directionBit_(port->directionRegister(), index)
-      , writeBit_(port->writeRegister(), index)
-      , readBit_(port->readRegister(), index) {
+  NX_FORCEINLINE constexpr TeensyPin(TeensyPort* const port) : port_(port) {
   }
-  FORCE_INLINE constexpr Port* port() const {
-    return port_;
-  }
-  FORCE_INLINE constexpr uint8_t index() const {
-    return index_;
-  }
-  FORCE_INLINE constexpr uint8_t bitFlag() const {
-    return (1u << index_);
-  }
-  FORCE_INLINE PinDirection direction() const {
-    return static_cast<PinDirection>(directionBit_.get());
-  }
-  FORCE_INLINE bool value() const { // TODO: does this work with output pins?
-    return readBit_.get();
-  }
-};
-class InputPin : public Pin {
- public:
-  // using 'D' pins for type deduction
-  FORCE_INLINE InputPin(Port* port, uint8_t index, bool pullup)
-      : Pin(port,index) {
-    directionBit_.set(static_cast<bool>(PinDirection::INPUT));
-    setPullup(pullup);
-  }
-  FORCE_INLINE bool pullup() const { // TODO: does this work?
-    return writeBit_.get();
-  }
-  FORCE_INLINE void setPullup(bool enabled) {
-    return writeBit_.set(enabled);
-  }
-};
-class OutputPin : public Pin {
- public:
-  // using 'D' pins for type deduction
-  FORCE_INLINE OutputPin(Port* port, uint8_t index, bool high)
-      : Pin(port,index) {
-    directionBit_.set(static_cast<bool>(PinDirection::OUTPUT));
-    setValue(high);
-  }
-  FORCE_INLINE void setValue(bool high) {
-    return writeBit_.set(high);
-  }
-};
-teensy::Port PortB(&DDRB,&PORTB,&PINB);
-teensy::Port PortC(&DDRC,&PORTC,&PINC);
-teensy::Port PortD(&DDRD,&PORTD,&PIND);
-teensy::Port PortE(&DDRE,&PORTE,&PINE);
-teensy::Port PortF(&DDRF,&PORTF,&PINF);
 
-}  // namespace teensy
+  template <bool value>
+  NX_FORCEINLINE void set() {
+    port_->set<Field<Mask<index_>::value,value>>();
+  }
+
+  NX_FORCEINLINE bool get() {
+    return static_cast<bool>(port_->get<Mask<index_>>());
+  }
+};
 
 int main() {
   teensy::SetProcessorFrequency();
 
-  teensy::OutputPin teensyLED(&teensy::PortD, 6, false);
+  TeensyPort PortD(&DDRD, &PORTD, &PIND);
+  TeensyPin<6> teensyLED(&PortD);
 
+  PortD.setDirection<Mask<4>/*input*/, Mask<6>/*output*/>();
   // PB4 is tied to VCC in the ergodox pcb, supposedly for "hardware
   // convenience".
   // Supposedly, you can cut the track if you want to use PB4 for something,
   // but unless you do that, we should make this an input without pullup.
   // See: http://geekhack.org/index.php?topic=22780.2850
-  teensy::InputPin pb4Vcc(&teensy::PortB, 4, false);
+
+  // No pullup on 4, LED off on 6
+  PortD.set<Field<Mask<4,6>::value,0>>();
 
   while (1) {
-    teensyLED.setValue(true);
+    teensyLED.set<true>();
     teensy::SleepMs<1000>();
-    teensyLED.setValue(false);
+    teensyLED.set<false>();
     teensy::SleepMs<1000>();
   }
 

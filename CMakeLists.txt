@@ -68,7 +68,7 @@ if(TOOLCHAIN_CXX_GNU_COMPATIBLE)
   Append(CC_FLAGS "-Wall")
   # as we're heavily relying upon inlining, we want errors if inlining is not
   # obeyed.
-  Append(CC_FLAGS "-Winline")# -Werror")
+  Append(CC_FLAGS "-Winline -Werror")
   # consider all functions for inlining
   Append(CC_FLAGS "-finline-functions -fpartial-inlining")
   Append(CC_FLAGS "-finline-small-functions -fearly-inlining")
@@ -83,8 +83,8 @@ if(TOOLCHAIN_CXX_GNU_COMPATIBLE)
   Append(CC_FLAGS "-ffunction-sections -fdata-sections")
 
   # Set language specific flags for cmake
-  Append(C_FLAGS "-std=gnu99 -Wstrict-prototypes")
-  Append(CXX_FLAGS "-std=gnu++11")
+  Append(C_FLAGS "-std=c99 -Wstrict-prototypes")
+  Append(CXX_FLAGS "-std=c++11")
 
   # Create LINK_FLAGS from our CC_FLAGS (needed for gcc's -flto if we use it)
   set(LINK_FLAGS "${CC_FLAGS}")
