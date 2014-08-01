@@ -34,9 +34,8 @@ enum class ProcessorFrequency {
 };
 
 /// @brief Gets the processor frequency as specified by F_CPU.
-NX_FORCEINLINE ProcessorFrequency GetProcessorFrequency() {
-  constexpr ProcessorFrequency processorFrequency =
-      ProcessorFrequency::
+NX_FORCEINLINE constexpr ProcessorFrequency GetProcessorFrequency() {
+  return ProcessorFrequency::
       #if   F_CPU == 16000000
       CPU_16MHz
       #elif F_CPU ==  8000000
@@ -60,7 +59,6 @@ NX_FORCEINLINE ProcessorFrequency GetProcessorFrequency() {
       CPU_2MHz // specified to prevent more errors than just the #error
       #endif
       ;
-  return processorFrequency;
 }
 
 /// @brief Sets the processor frequency to the one specified in F_CPU.
@@ -77,19 +75,10 @@ NX_FORCEINLINE void SetProcessorFrequency() {
 
 // TODO: remove
 /// https://www.pjrc.com/teensy/pins.html
-enum class PinDirection : bool {
+enum class Direction : bool {
   INPUT  = false,
   OUTPUT = true
 };
-
-
-//teensy::Port PortB(&DDRB,&PORTB,&PINB);
-//teensy::Port PortC(&DDRC,&PORTC,&PINC);
-//teensy::Port PortD(&DDRD,&PORTD,&PIND);
-//teensy::Port PortE(&DDRE,&PORTE,&PINE);
-//teensy::Port PortF(&DDRF,&PORTF,&PINF);
-
-}  // namespace teensy
 
 /// @brief The type used by the AVR registers.
 /// @details Using the type of an arbitrary register for this.
@@ -107,13 +96,15 @@ using Field = nx::BitField<register_type, mask_, value_>;
 template <unsigned int... position_>
 using Mask = nx::BitMask<register_type, position_...>;
 
-class TeensyPort {
+
+
+class Port {
   RegisterPointer const directionRegister_;
   RegisterPointer const writeRegister_;
   RegisterPointer const readRegister_;
  public:
 
-  NX_FORCEINLINE constexpr TeensyPort(
+  NX_FORCEINLINE constexpr Port(
       RegisterPointer directionRegister,
       RegisterPointer writeRegister,
       RegisterPointer readRegister)
@@ -132,53 +123,87 @@ class TeensyPort {
     DirectionField::set(directionRegister_);
   }
 
-  /// @brief Gets the value of an input pin (TODO: does this work for output?)
-  template <class Mask>
-  NX_FORCEINLINE register_type get() {
-    return (*readRegister_) & Mask::value;
-  }
-
   /// @brief Sets the bits specified.  For input pins, set bits mean to enable
   /// the internal pullup.
   template <class Value>
   NX_FORCEINLINE void set() {
     Value::set(writeRegister_);
   }
+  // output is 1
+  template <class Value>
+  NX_FORCEINLINE void setDirection() {
+    Value::set(directionRegister_);
+  }
+
+  /// @brief Gets the value of an input pin (TODO: does this work for output?)
+  template <class Mask>
+  NX_FORCEINLINE constexpr register_type get() const {
+    return (*readRegister_) & Mask::value;
+  }
+
+  template <class Mask>
+  NX_FORCEINLINE constexpr register_type getDirection() const {
+    return (*directionRegister_) & Mask::value;
+  }
 
 };
 
 template <unsigned int index_>
-class TeensyPin {
-  TeensyPort* const port_;
+class Pin {
+  Port* const port_;
  public:
-  NX_FORCEINLINE constexpr TeensyPin(TeensyPort* const port) : port_(port) {
+  NX_FORCEINLINE constexpr Pin(Port* const port) : port_(port) {
   }
 
   template <bool value>
   NX_FORCEINLINE void set() {
     port_->set<Field<Mask<index_>::value,value>>();
   }
+  template <Direction direction>
+  NX_FORCEINLINE void setDirection() {
+    port_->setDirection<Field<
+        Mask<index_>::value,static_cast<register_type>(direction)>>();
+  }
 
-  NX_FORCEINLINE bool get() {
+  NX_FORCEINLINE constexpr bool get() const {
     return static_cast<bool>(port_->get<Mask<index_>>());
+  }
+  NX_FORCEINLINE constexpr Direction getDirection() const {
+    return static_cast<Direction>(static_cast<bool>(
+        port_->getDirection<Mask<index_>>()));
   }
 };
 
+
+Port PortB(&DDRB,&PORTB,&PINB);
+Port PortC(&DDRC,&PORTC,&PINC);
+Port PortD(&DDRD,&PORTD,&PIND);
+Port PortE(&DDRE,&PORTE,&PINE);
+Port PortF(&DDRF,&PORTF,&PINF);
+
+}  // namespace teensy
+
 int main() {
-  teensy::SetProcessorFrequency();
+  using namespace teensy;
+  SetProcessorFrequency();
 
-  TeensyPort PortD(&DDRD, &PORTD, &PIND);
-  TeensyPin<6> teensyLED(&PortD);
-
-  PortD.setDirection<Mask<4>/*input*/, Mask<6>/*output*/>();
   // PB4 is tied to VCC in the ergodox pcb, supposedly for "hardware
   // convenience".
   // Supposedly, you can cut the track if you want to use PB4 for something,
   // but unless you do that, we should make this an input without pullup.
   // See: http://geekhack.org/index.php?topic=22780.2850
+  // PB4 input
+  PortB.setDirection<Value<Mask<4>::value,0>>();
+  // PB4 no pullup
+  PortB.set<Value<Mask<4>::value,0>>();
 
-  // No pullup on 4, LED off on 6
-  PortD.set<Field<Mask<4,6>::value,0>>();
+  // PD6 output
+  PortD.setDirection<Value<
+      Mask<6>::value, // pins to set
+      Mask<6>::value // output pins
+      >>();
+  // PD6 pin
+  Pin<6> teensyLED(&PortD);
 
   while (1) {
     teensyLED.set<true>();
