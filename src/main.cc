@@ -89,13 +89,8 @@ typedef std::remove_reference<decltype(DDRD)>::type*  RegisterPointer;
 typedef typename std::remove_volatile<
     typename std::remove_reference<decltype(DDRD)>::type>::type register_type;
 
-template <register_type mask_, register_type value_>
-using Value = nx::BitValue<register_type, mask_, value_>;
-template <register_type mask_, register_type value_>
-using Field = nx::BitField<register_type, mask_, value_>;
-template <unsigned int... position_>
-using Mask = nx::BitMask<register_type, position_...>;
 
+typedef nx::Bits<register_type> Register;
 
 
 class Port {
@@ -113,66 +108,30 @@ class Port {
       , readRegister_(readRegister) {
   }
 
-  // TODO: rework how we pass these in, perhaps more like set()
-  template<class InputPins, class OutputPins>
-  NX_FORCEINLINE void setDirection() {
-    typedef nx::BitTransaction<
-        Value<OutputPins::value, OutputPins::value>, // output
-        Value<InputPins::value, 0u> // input
-        > DirectionField;
-    DirectionField::set(directionRegister_);
+  /// @brief Returns the direction register for the port.
+  NX_FORCEINLINE constexpr RegisterPointer directionRegister() const {
+    return directionRegister_;
   }
-
-  /// @brief Sets the bits specified.  For input pins, set bits mean to enable
-  /// the internal pullup.
-  template <class Value>
-  NX_FORCEINLINE void set() {
-    Value::set(writeRegister_);
+  /// @brief Returns the write register for the port.
+  NX_FORCEINLINE constexpr RegisterPointer writeRegister() const {
+    return writeRegister_;
   }
-  // output is 1
-  template <class Value>
-  NX_FORCEINLINE void setDirection() {
-    Value::set(directionRegister_);
-  }
-
-  /// @brief Gets the value of an input pin (TODO: does this work for output?)
-  template <class Mask>
-  NX_FORCEINLINE constexpr register_type get() const {
-    return (*readRegister_) & Mask::value;
-  }
-
-  template <class Mask>
-  NX_FORCEINLINE constexpr register_type getDirection() const {
-    return (*directionRegister_) & Mask::value;
+  /// @brief Returns the read register for the port.
+  NX_FORCEINLINE constexpr RegisterPointer readRegister() const {
+    return readRegister_;
   }
 
 };
 
+#if 0
 template <unsigned int index_>
 class Pin {
   Port* const port_;
  public:
   NX_FORCEINLINE constexpr Pin(Port* const port) : port_(port) {
   }
-
-  template <bool value>
-  NX_FORCEINLINE void set() {
-    port_->set<Field<Mask<index_>::value,value>>();
-  }
-  template <Direction direction>
-  NX_FORCEINLINE void setDirection() {
-    port_->setDirection<Field<
-        Mask<index_>::value,static_cast<register_type>(direction)>>();
-  }
-
-  NX_FORCEINLINE constexpr bool get() const {
-    return static_cast<bool>(port_->get<Mask<index_>>());
-  }
-  NX_FORCEINLINE constexpr Direction getDirection() const {
-    return static_cast<Direction>(static_cast<bool>(
-        port_->getDirection<Mask<index_>>()));
-  }
 };
+#endif
 
 
 Port PortB(&DDRB,&PORTB,&PINB);
@@ -192,23 +151,49 @@ int main() {
   // Supposedly, you can cut the track if you want to use PB4 for something,
   // but unless you do that, we should make this an input without pullup.
   // See: http://geekhack.org/index.php?topic=22780.2850
+
   // PB4 input
-  PortB.setDirection<Value<Mask<4>::value,0>>();
+  Register::clear<Register::Mask<4>()>(PortB.directionRegister());
+
   // PB4 no pullup
-  PortB.set<Value<Mask<4>::value,0>>();
+  Register::clear<Register::Mask<4>()>(PortB.writeRegister());
+
 
   // PD6 output
-  PortD.setDirection<Value<
-      Mask<6>::value, // pins to set
-      Mask<6>::value // output pins
-      >>();
-  // PD6 pin
-  Pin<6> teensyLED(&PortD);
+  Register::set<Register::Mask<6>()>(PortD.directionRegister());
+
+  // COM1A1=1
+  // COM1A0=0
+  // COM1B1=1
+  // COM1B0=0
+  // COM1C1=1
+  // COM1C0=0
+  // WGM11=0
+  // WGM10=1
+  //
+  // CM means Compare Match
+  // COM1A == 10 == Cleared CM when up, set on CM when down
+  // COM1B == 10 == Cleared CM when up, set on CM when down
+  // COM1C == 10 == Cleared CM when up, set on CM when down
+  TCCR1A  = 0b10101001;  // set and configure fast PWM
+
+  // ICNC1 = 0
+  // ICES1 = 0
+  // - = 0
+  // WGM13 = 0
+  // WGM12 = 1
+  // CS12 = 0
+  // CS11 = 0
+  // CS10 = 1
+  TCCR1B  = 0b00001001;  // set and configure fast PWM
+
+
+  // WGM[3:0] = 0b0101 = 5
 
   while (1) {
-    teensyLED.set<true>();
+    Register::set<Register::Mask<6>()>(PortD.writeRegister());
     teensy::SleepMs<1000>();
-    teensyLED.set<false>();
+    Register::clear<Register::Mask<6>()>(PortD.writeRegister());
     teensy::SleepMs<1000>();
   }
 
